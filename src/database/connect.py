@@ -6,7 +6,7 @@ class Connection:
         self.conn = sqlite3.connect('charging_station.db', check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         print("数据库打开成功")
-        self.c = self.conn.cursor()
+        self.cursor = self.conn.cursor()
         self.create_bill_table()
         self.create_user_table()
         self.create_pile_table()
@@ -20,10 +20,11 @@ class Connection:
 
     def create_bill_table(self):
         # 时间(日、周、月)、充电桩编号、累计充电次数、累计充电时长、累计充电量、累计充电费用、累计服务费用、累计总费用
-        self.c.execute('''
+        self.cursor.execute('''
         CREATE TABLE IF NOT EXISTS bill
            (bill_id          Integer PRIMARY KEY,
            bill_ls           TEXT,
+           user_id           Integer,
            car_id            TEXT     NOT NULL,
            bill_date         TEXT    NOT NULL,
            pile_id           Integer    NOT NULL,
@@ -40,7 +41,7 @@ class Connection:
         self.conn.commit()
 
     def create_user_table(self):
-        self.c.execute('''
+        self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS user (
                 user_id         INTEGER  PRIMARY KEY,   -- 自增主键（无需 AUTOINCREMENT）
                 user_name       TEXT     NOT NULL UNIQUE,  -- 用户名（唯一）
@@ -49,7 +50,7 @@ class Connection:
                 capacity        REAL     NOT NULL CHECK (capacity >= 0)  -- 容量（非负）
             );
        ''')
-        self.c.execute('''
+        self.cursor.execute('''
             CREATE INDEX IF NOT EXISTS idx_user_name ON user (user_name);
         ''')
         print("user数据表创建成功")
@@ -57,7 +58,7 @@ class Connection:
 
     def create_pile_table(self):
         #是否正常工作、系统启动后累计充电次数、充电总时长、充电总电量
-        self.c.execute("""
+        self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS pile_report(
             pile_id Integer,
             date DATE NOT NULL,
