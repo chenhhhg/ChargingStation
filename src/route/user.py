@@ -2,7 +2,7 @@ from fastapi import APIRouter, Request, Response
 from pydantic import BaseModel
 
 from route.__init__ import login_required
-from database import user
+from database import user, bill
 from util import auth_util
 
 router = APIRouter(
@@ -12,6 +12,9 @@ router = APIRouter(
 class LoginUser(BaseModel):
     user_name: str
     password: str
+
+class RegisterUser(LoginUser):
+    capacity: int
 
 @router.post("/login")
 async def user_login(login_user: LoginUser, response: Response):
@@ -23,8 +26,18 @@ async def user_login(login_user: LoginUser, response: Response):
         response.headers["Authorization"] = auth_util.generate_token(info['data']['user_id'])
     return info
 
-@router.get("/protected")
+@router.post("/register")
+async def user_register(register_user: RegisterUser):
+    return user.register(register_user.user_name, register_user.password, register_user.capacity)
+
+@router.post("/charge")
 @login_required
-async def protected_route(request: Request):
+async def request_charge(request: Request, type: str, power: int):
+    # todo
     user_id = request.state.user_id
-    return {"code": 1, "message": "访问成功", "data": {"user_id": user_id}}
+
+@router.get("/bills")
+@login_required
+async def bills(request: Request):
+    return bill.get_all_bill(request.state.user_id)
+

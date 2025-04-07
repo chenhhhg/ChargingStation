@@ -2,11 +2,30 @@ from typing import Optional
 import jwt
 import datetime
 from hashlib import sha256
+import random
+import string
 
 SECRET_KEY = "hello_world"
 JWT_ALGORITHM = "HS256"
 TOKEN_EXPIRE_HOURS = 72
+provinces = ['京', '沪', '津', '渝', '冀', '豫', '云', '辽', '黑', '湘',
+                 '皖', '鲁', '新', '苏', '浙', '赣', '鄂', '桂', '甘', '晋',
+                 '蒙', '陕', '吉', '闽', '贵', '粤', '青', '藏', '川', '宁',
+                 '琼']
+letters = [c for c in string.ascii_uppercase if c not in ['I', 'O']]
 
+def generate_license_plate(num_plates=1):
+    plates = []
+    for _ in range(num_plates):
+        # 新能源车牌格式：省份 + 字母 + (D/F) + 5位字母/数字
+        province = random.choice(provinces)
+        char = random.choice(letters)
+        energy_type = random.choice(['D', 'F'])  # D: 纯电, F: 混动
+        suffix = ''.join(random.choices(string.digits + ''.join(letters), k=5))
+        plate = f"{province}{char}{energy_type}{suffix}"
+        plates.append(plate)
+
+    return plates if num_plates > 1 else plates[0]
 
 def generate_token(user_id: int) -> Optional[str]:
     now_utc = datetime.datetime.now(datetime.UTC)
