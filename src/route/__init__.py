@@ -31,8 +31,8 @@ def login_required(func: Callable) -> Callable[[Request], Coroutine[Any, Any, An
             )
 
         # 将 user_id 存入请求的 state 中
-        request.state.user_id = result
-
+        request.state.user_id = result["user_id"]
+        request.state.car_id = result["car_id"]
         # 执行原函数（支持同步/异步）
         if asyncio.iscoroutinefunction(func):
             return await func(request, *args, **kwargs)

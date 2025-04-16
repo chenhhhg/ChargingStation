@@ -4,10 +4,14 @@ from pydantic import BaseModel
 from route.__init__ import login_required
 from database import user, bill
 from util import auth_util
+from core.global_area import Car
 
 router = APIRouter(
     prefix="/user"
 )
+
+charging_zone = None
+waiting_zone = None
 
 class LoginUser(BaseModel):
     user_name: str
@@ -23,7 +27,7 @@ async def user_login(login_user: LoginUser, response: Response):
     """验证用户名密码"""
     info = user.login(login_user.user_name, login_user.password)
     if info['code'] == 1:
-        response.headers["Authorization"] = auth_util.generate_token(info['data']['user_id'])
+        response.headers["Authorization"] = auth_util.generate_token(info['data']['user_id'], info['data']['car_id'])
     return info
 
 @router.post("/register")
@@ -33,8 +37,15 @@ async def user_register(register_user: RegisterUser):
 @router.post("/charge")
 @login_required
 async def request_charge(request: Request, type: str, power: int):
-    # todo
+    # check type and power valid
+
     user_id = request.state.user_id
+    car_id = request.state.car_id
+    remain_time = charging_zone.cal_remain_time(type, power)
+    if waiting_zone.add_vehicle(Car(user_id, car_id, type, power, remain_time)):
+        return {"message:success"}
+    return {"message":"failed"}
+
 
 @router.get("/bills")
 @login_required

@@ -27,10 +27,11 @@ def generate_license_plate(num_plates=1):
 
     return plates if num_plates > 1 else plates[0]
 
-def generate_token(user_id: int) -> Optional[str]:
+def generate_token(user_id: int, car_id: str) -> Optional[str]:
     now_utc = datetime.datetime.now(datetime.UTC)
     payload = {
         "user_id": user_id,
+        "car_id":car_id,
         "exp": now_utc + datetime.timedelta(hours=TOKEN_EXPIRE_HOURS)
     }
     # 生成令牌（确保密钥为字节串）
@@ -51,10 +52,14 @@ def decode_token(token):
         return False, "token解析失败"
     exp = data.pop('exp')
     now_utc = datetime.datetime.now(datetime.UTC)
-    if now_utc > exp:
-        print('token已失效')
-        return False, 'token已失效，请重新登录'
-    return True, data.pop('user_id')
+    # if now_utc > exp:
+    #     print('token已失效')
+    #     return False, 'token已失效，请重新登录'
+    return True, {"user_id":data.pop('user_id'),"car_id":data.pop('car_id')}
 
 def hash_password(password):
     return sha256(password.encode()).hexdigest()
+
+if __name__ == '__main__':
+    for _ in range(10):
+        print(generate_token(_, generate_license_plate()))
