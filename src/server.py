@@ -1,3 +1,4 @@
+import queue
 import threading
 
 import uvicorn
@@ -19,6 +20,7 @@ fast_speed = 30
 slow_speed = 5
 wait_queue_length = 1
 semaphore = threading.Semaphore(pile_num * wait_queue_length)
+report_queue = queue.Queue()
 
 @app.get("/")
 async def root():
@@ -26,7 +28,9 @@ async def root():
 
 if __name__ == '__main__':# 初始化充电区（3个桩）
 
-    charging_zone = ChargingZone(pile_num, semaphore, fast_rate, fast_speed, slow_speed, wait_queue_length)
+    charging_zone = ChargingZone(pile_num, semaphore, report_queue,
+                                 fast_rate, fast_speed, slow_speed,
+                                 wait_queue_length)
     # 依赖注入
     waiting_zone = WaitingArea(charging_zone, semaphore)
 

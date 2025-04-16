@@ -1,28 +1,31 @@
 import copy
+import queue
 import threading
 import time
 import logging
 from datetime import datetime
 from collections import deque
-from core.global_area import Car
+from core.global_area import Car, ChargeResult
 
 LOG_FORMAT = "%(asctime)s - %(levelname)s - %(filename)s[:%(lineno)d] - %(message)s"
 DATE_FORMAT = "%m/%d/%Y %H:%M:%S %p"
 logging.basicConfig(level=logging.DEBUG, format=LOG_FORMAT, datefmt=DATE_FORMAT)
 
 class ChargingZone:
-    def __init__(self, num_piles, semaphore: threading.Semaphore, fast_pile_rate=0.3, fast_speed=30, slow_speed=7, wait_queue_length=1):
+    def __init__(self, num_piles, semaphore: threading.Semaphore, report_queue: queue.Queue,
+                 fast_pile_rate=0.3, fast_speed=30, slow_speed=7, wait_queue_length=1):
         self.waiting_cond = None
         self.charging_piles = []
         self.fast_pile_rate = fast_pile_rate
         self.fast_speed = fast_speed
         self.slow_speed = slow_speed
+        self.report_queue = report_queue
         self.semaphore = semaphore
 
         # 初始化充电桩
         fast_count = int(num_piles * self.fast_pile_rate)
-        self.charging_piles = [ChargingPile("T", wait_queue_length) for _ in range(num_piles - fast_count)]
-        self.charging_piles.extend(ChargingPile("F", wait_queue_length) for _ in range(fast_count))
+        self.charging_piles = [ChargingPile("T", wait_queue_length, _) for _ in range(num_piles - fast_count)]
+        self.charging_piles.extend(ChargingPile("F", wait_queue_length, _) for _ in range(fast_count))
 
         # 启动充电工作线程
         self.worker_thread = threading.Thread(target=self.charging_worker, daemon=True)
@@ -95,13 +98,19 @@ class ChargingZone:
                     vehicle = pile.current_vehicle
                     logging.info(f"桩{index} 开始为等待车辆 {vehicle.vid} 充电")
                     speed = self.slow_speed if pile.mode == "T" else self.fast_speed
-                    vehicle.remain_time = max(0, vehicle.remain_time - interval * speed)
-
+                    charged = interval * speed
+                    if vehicle.remain_time > charged:
+                        vehicle.remain_time -= charged
+                        vehicle.charge_duration += charged
+                    else:
+                        vehicle.charge_duration += vehicle.remain_time
+                        vehicle.remain_time = 0
                     # 空出位置，通知等待区
                     if vehicle.remain_time <= 0:
                         charge_time = (datetime.now() - vehicle.start_time).total_seconds()
                         logging.info(f"车辆 {vehicle.vid} 在桩{index}充电完成，耗时 {charge_time:.1f}秒")
                         pile.current_vehicle = None
+                        self.report_queue.put(ChargeResult(pile.id, datetime.now(), vehicle))
                         self.semaphore.release()
 
     def get_pile_status(self, index):
@@ -119,8 +128,9 @@ class ChargingZone:
 
 
 class ChargingPile:
-    def __init__(self, mode: str, wait_queue_length: int):
+    def __init__(self, mode: str, wait_queue_length: int, id: int):
         self.mode = mode
+        self.id = mode + str(id)
         self.current_vehicle = None
         self.queue_limit = wait_queue_length
         self.waiting_queue = deque()
