@@ -1,8 +1,32 @@
+import time
+
 from core import state
+from core.state import waiting_area
+import threading
+
+def wait_schedule(interval_sec=10):
+    while True:
+        call_next_vehicle()
+        #todo 修改成阻塞等待阻塞队列与充电区信号量
+        time.sleep(interval_sec)
+
+def add_vehicle(vehicle_id: str, mode: str, request_power: float):
+    if len(waiting_area) >= 6:
+        return {"message": "等候区已满"}
+
+    prefix = "F" if mode == "fast" else "T"
+    waiting_area.append({
+        "id": f"{prefix}{vehicle_id}",
+        "mode": mode,
+        "request_power": request_power
+    })
+
+    return {"message": f"车辆 {prefix}{vehicle_id} 已加入等候队"}
 
 def call_next_vehicle():
     if not state.waiting_area:
         return {"message": "等候区暂无车辆"}
+    #todo 修改调度算法
 
     # 取出队首车辆
     vehicle = state.waiting_area.pop(0)
@@ -35,3 +59,4 @@ def call_next_vehicle():
         # 如果没有充电桩队列空位，则车辆回到等候区队尾
         state.waiting_area.insert(0, vehicle)
         return {"message": "暂无充电桩空位，继续等待"}
+

@@ -18,7 +18,8 @@ def login(user_name: str, password: str):
             "code": 1,
             "message": "登录成功",
             "data": {
-                user_data
+                "user_id":user_data["user_id"],
+                "car_id":user_data["car_id"]
             }
         }
     else:

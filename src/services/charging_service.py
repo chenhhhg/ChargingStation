@@ -1,4 +1,12 @@
+import threading
+import time
+
 from core import state
+
+def charge_loop(interval_sec=10):
+    while True:
+        time.sleep(interval_sec)
+        process_charging_queue()
 
 def process_charging_queue():
     completed = []
@@ -32,3 +40,4 @@ def process_charging_queue():
         "message": f"本轮充电处理完成，共完成 {len(completed)} 辆车",
         "finished": completed
     }
+
