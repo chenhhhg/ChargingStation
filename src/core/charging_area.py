@@ -6,26 +6,31 @@ import logging
 from datetime import datetime
 from collections import deque
 from core.global_area import Car, ChargeResult
+from core.virtual_time import time_factor
 
 LOG_FORMAT = "%(asctime)s - %(levelname)s - %(filename)s[:%(lineno)d] - %(message)s"
 DATE_FORMAT = "%m/%d/%Y %H:%M:%S %p"
-logging.basicConfig(level=logging.DEBUG, format=LOG_FORMAT, datefmt=DATE_FORMAT)
+logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt=DATE_FORMAT)
 
 class ChargingZone:
-    def __init__(self, num_piles, semaphore: threading.Semaphore, report_queue: queue.Queue,
-                 fast_pile_rate=0.3, fast_speed=30, slow_speed=7, wait_queue_length=1):
+    def __init__(self, fast_num, slow_num,
+                 semaphore_t: threading.Semaphore,
+                 semaphore_f: threading.Semaphore,
+                 report_queue: queue.Queue,
+                fast_speed=30, slow_speed=7, wait_queue_length=1):
         self.waiting_cond = None
+        self.vir = None
+        self.fast_num = fast_num
+        self.slow_num = slow_num
         self.charging_piles = []
-        self.fast_pile_rate = fast_pile_rate
         self.fast_speed = fast_speed
         self.slow_speed = slow_speed
         self.report_queue = report_queue
-        self.semaphore = semaphore
-
+        self.not_full_t = semaphore_t
+        self.not_full_f = semaphore_f
         # 初始化充电桩
-        fast_count = int(num_piles * self.fast_pile_rate)
-        self.charging_piles = [ChargingPile("T", wait_queue_length, _) for _ in range(num_piles - fast_count)]
-        self.charging_piles.extend(ChargingPile("F", wait_queue_length, _) for _ in range(fast_count))
+        self.charging_piles = [ChargingPile("T", wait_queue_length, _) for _ in range(slow_num)]
+        self.charging_piles.extend(ChargingPile("F", wait_queue_length, _) for _ in range(fast_num))
 
         # 启动充电工作线程
         self.worker_thread = threading.Thread(target=self.charging_worker, daemon=True)
@@ -80,38 +85,44 @@ class ChargingZone:
     def charging_worker(self, interval=1):
         """充电桩工作线程"""
         while True:
-            time.sleep(interval)
-            logging.info("充电区线程开始工作")
+            logging.debug("充电区线程开始工作")
             for index, pile in enumerate(self.charging_piles):
                 with pile.lock:
-                    logging.info(f"检查充电桩:{index}")
+                    logging.debug(f"检查充电桩:{index}")
                     if pile.current_vehicle is None:
-                        logging.info(f"该充电桩当前未在充电")
+                        logging.debug(f"该充电桩当前未在充电")
                         if not pile.waiting_queue:
-                            logging.info("该充电桩当前无排队车辆")
+                            logging.debug("该充电桩当前无排队车辆")
                             continue
-                        logging.info(f"正在调度新车辆")
+                        logging.debug(f"正在调度新车辆")
                         next_vehicle = pile.waiting_queue.popleft()
                         next_vehicle.start_time = datetime.now()
                         pile.current_vehicle = next_vehicle
-                        logging.info(f"新车辆 {pile.current_vehicle.vid} 开始充电")
+                        logging.debug(f"新车辆 {pile.current_vehicle.vid} 开始充电")
                     vehicle = pile.current_vehicle
-                    logging.info(f"桩{index} 开始为等待车辆 {vehicle.vid} 充电")
+                    logging.info(f"桩 {pile.id} 开始为等待车辆 {vehicle.vid} 充电")
                     speed = self.slow_speed if pile.mode == "T" else self.fast_speed
-                    charged = interval * speed
-                    if vehicle.remain_time > charged:
-                        vehicle.remain_time -= charged
-                        vehicle.charge_duration += charged
+                    time_passed = (interval / 3600) * time_factor
+                    if vehicle.remain_time > time_passed:
+                        vehicle.remain_time -= time_passed
+                        vehicle.charge_duration += time_passed
+                        vehicle.required -= time_passed * speed
                     else:
                         vehicle.charge_duration += vehicle.remain_time
                         vehicle.remain_time = 0
+                        vehicle.required = 0
                     # 空出位置，通知等待区
                     if vehicle.remain_time <= 0:
-                        charge_time = (datetime.now() - vehicle.start_time).total_seconds()
-                        logging.info(f"车辆 {vehicle.vid} 在桩{index}充电完成，耗时 {charge_time:.1f}秒")
+                        charge_time = (self.vir.now() - vehicle.start_time)
+                        logging.info(f"车辆 {vehicle.vid} 在桩{pile.id}充电完成")
                         pile.current_vehicle = None
-                        self.report_queue.put(ChargeResult(pile.id, datetime.now(), vehicle))
-                        self.semaphore.release()
+                        self.report_queue.put(ChargeResult(pile.id, datetime.now(), speed, vehicle))
+                        if vehicle.mode == 'T':
+                            self.not_full_t.release()
+                        else:
+                            self.not_full_f.release()
+            time.sleep(interval)
+
 
     def get_pile_status(self, index):
         """获取充电桩状态"""
@@ -138,7 +149,8 @@ class ChargingPile:
 
     def __deepcopy__(self, memo):
         # 跳过锁的拷贝
-        new_pile = ChargingPile(self.mode)
+        new_pile = ChargingPile(self.mode, self.queue_limit, -1)
+        new_pile.id = self.id
         new_pile.current_vehicle = copy.deepcopy(self.current_vehicle, memo)
         new_pile.waiting_queue = copy.deepcopy(self.waiting_queue, memo)
         return new_pile
@@ -149,6 +161,5 @@ class ChargingPile:
             return {
                 "mode": self.mode,
                 "current": self.current_vehicle.to_dict() if self.current_vehicle else None,
-                "waiting_queue": [v.to_dict() for v in self.waiting_queue],
-                "queue_size": len(self.waiting_queue)
+                "waiting_queue": [v.to_dict() for v in self.waiting_queue]
             }

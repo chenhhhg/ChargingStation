@@ -51,8 +51,11 @@ async def request_charge(request: Request, type: str, power: int):
         return {f"message:当前状态不合法：{state.name}"}
 
     u = user.get_by_id(user_id)
-    if u["capacity"] < power:
-        return {f"message:超出电容量，最大负荷:{u["capacity"]}"}
+    # if u is None:
+    #     return {f"当前用户不存在！"}
+    #
+    # if u["capacity"] < power:
+    #     return {f"message:超出电容量，最大负荷:{u["capacity"]}"}
 
     car_id = request.state.car_id
     remain_time = charging_zone.cal_remain_time(type, power)

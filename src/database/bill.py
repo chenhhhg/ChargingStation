@@ -7,3 +7,4 @@ def get_all_bill(user_id):
         WHERE user_id = ?
     """, (user_id,)).fetchall()
     return {"code":1, "data":bills}
+

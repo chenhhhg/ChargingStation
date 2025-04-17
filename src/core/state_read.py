@@ -2,19 +2,28 @@ from core.state_const import VehicleStatus
 
 charging_zone = None
 waiting_zone = None
+vir = None
 
 def get_all_state():
     piles = charging_zone.get_state()
     waiting_cars = waiting_zone.get_state()
     return {
+        "time":vir.now(),
         "waiting_area":waiting_cars,
         "charging_area":piles
     }
 
 def get_user_state(user_id:int):
     waiting_cars = waiting_zone.get_state()
-    for _, car in enumerate(waiting_cars):
-        if car["uid"] == user_id:
+    if waiting_cars is None:
+        return VehicleStatus.LOGGED_IN
+    wt = waiting_cars["T"]
+    wf = waiting_cars["F"]
+    for _, car in enumerate(wt):
+        if car.uid == user_id:
+            return VehicleStatus.WAITING
+    for _, car in enumerate(wf):
+        if car.uid == user_id:
             return VehicleStatus.WAITING
     piles = charging_zone.get_state()
     for _, pile in enumerate(piles):
