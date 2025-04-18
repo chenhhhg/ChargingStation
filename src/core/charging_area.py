@@ -178,6 +178,7 @@ class ChargingZone:
                     next_vehicle = pile.waiting_queue.popleft()
                     next_vehicle.start_time = self.vir.now()
                     pile.current_vehicle = next_vehicle
+                    pile.total_charge_count += 1
                     logging.debug(f"新车辆 {pile.current_vehicle.vid} 开始充电")
                 # 开始充电
                 vehicle = pile.current_vehicle
@@ -190,12 +191,18 @@ class ChargingZone:
                     vehicle.charge_duration += time_passed
                     vehicle.required -= time_passed * speed
                     vehicle.charge_degree += time_passed * speed
+
+                    pile.total_charge_time += time_passed
+                    pile.total_charge_degree += time_passed * speed
                 # 充电结束
                 else:
                     vehicle.charge_duration += vehicle.remain_time
                     vehicle.charge_degree += vehicle.remain_time * speed
                     vehicle.remain_time = 0
                     vehicle.required = 0
+
+                    pile.total_charge_time += vehicle.remain_time
+                    pile.total_charge_degree += vehicle.remain_time * speed
                 # 空出位置，通知等待区
                 if vehicle.remain_time <= 0:
                     logging.info(f"车辆 {vehicle.vid} 在桩{pile.id}充电完成")
@@ -236,11 +243,18 @@ class ChargingPile:
         self.waiting_queue = deque()
         self.lock = threading.Lock()
         self.open = True
+        self.total_charge_degree = 0
+        self.total_charge_time = 0
+        self.total_charge_count = 0
 
     def __deepcopy__(self, memo):
         # 跳过锁的拷贝
         new_pile = ChargingPile(self.mode, self.queue_limit, -1)
         new_pile.id = self.id
+        new_pile.total_charge_degree = self.total_charge_degree
+        new_pile.total_charge_count = self.total_charge_count
+        new_pile.total_charge_time = self.total_charge_time
+        new_pile.open = self.open
         new_pile.current_vehicle = copy.deepcopy(self.current_vehicle, memo)
         new_pile.waiting_queue = copy.deepcopy(self.waiting_queue, memo)
         return new_pile
@@ -252,5 +266,9 @@ class ChargingPile:
                 "id": self.id,
                 "mode": self.mode,
                 "current": self.current_vehicle.to_dict() if self.current_vehicle else None,
-                "waiting_queue": [v.to_dict() for v in self.waiting_queue]
+                "waiting_queue": [v.to_dict() for v in self.waiting_queue],
+                "open": self.open,
+                "total_charge_degree": self.total_charge_degree,
+                "total_charge_time": self.total_charge_time,
+                "total_charge_count": self.total_charge_count,
             }
