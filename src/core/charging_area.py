@@ -43,20 +43,44 @@ class ChargingZone:
     def get_state(self):
         return [copy.deepcopy(pile.to_dict()) for pile in self.charging_piles]
 
+    def cancel(self, user_id):
+        for i, pile in enumerate(self.charging_piles):
+            if not pile.open:
+                continue
+            with pile.lock:
+                if not pile.open:
+                    return {"message:状态不幸变更了，再试一次吧"}
+                if pile.current_vehicle is not None:
+                    if pile.current_vehicle.uid == user_id:
+                        pile.current_vehicle = None
+                        return {"message:取消成功"}
+                if pile.waiting_queue:
+                    c = None
+                    for _, car in enumerate(pile.waiting_queue):
+                        if car.uid == user_id:
+                            c = None
+                            break
+                    if c is not None:
+                        pile.waiting_queue.remove(c)
+                        return {"message:取消成功"}
+
+
     def find_pile(self, vehicle: Car):
         """寻找最优充电桩"""
         best_score = float('inf')
         best_index = -1
         for i, pile in enumerate(self.charging_piles):
+            # double check
+            if not pile.open or pile.mode != vehicle.mode or len(pile.waiting_queue) == pile.queue_limit:
+                continue
             with pile.lock:
-                if not pile.open or pile.mode != vehicle.mode or len(pile.waiting_queue) == pile.queue_limit:
-                    continue
-                score = len(pile.waiting_queue)
-                if pile.current_vehicle is None:
-                    score -= 100
-                if score < best_score:
-                    best_score = score
-                    best_index = i
+                if pile.open and len(pile.waiting_queue) < pile.queue_limit:
+                    score = len(pile.waiting_queue)
+                    if pile.current_vehicle is None:
+                        score -= 100
+                    if score < best_score:
+                        best_score = score
+                        best_index = i
         return best_index
 
     def assign_vehicle(self, vehicle):

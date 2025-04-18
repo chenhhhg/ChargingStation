@@ -4,6 +4,8 @@ import logging
 import threading
 import time
 
+from core.state_const import VehicleStatus
+
 LOG_FORMAT = "%(asctime)s - %(levelname)s - %(filename)s[:%(lineno)d] - %(message)s"
 DATE_FORMAT = "%m/%d/%Y %H:%M:%S %p"
 logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt=DATE_FORMAT)
@@ -46,6 +48,58 @@ class WaitingArea:
             logging.debug(f"车辆 {vehicle.vid} 加入等待区, 模式:{vehicle.mode}")
         return True
 
+    def pop_all(self, q, exclude=None):
+        temp = []
+        while not q.empty():
+            car = q.get()
+            if car != exclude:
+                temp.append(car)
+        return temp
+
+    def check_if_rescheduling(self, user_id):
+        rescheduling = False
+        with self.waiting_lock:
+            temp = self.pop_all(self.reschedule_t)
+            for _, car in enumerate(temp):
+                rescheduling = not rescheduling and car.uid == user_id
+                self.reschedule_t.put(car)
+            if rescheduling:
+                return True
+            temp = self.pop_all(self.reschedule_f)
+            for _, car in enumerate(temp):
+                rescheduling = not rescheduling and car.uid == user_id
+                self.reschedule_f.put(car)
+            return rescheduling
+
+    def cancel(self, user_id, state: VehicleStatus):
+        if state == VehicleStatus.PENDING_RESCHEDULE:
+            with self.waiting_lock:
+                temp = self.pop_all(self.reschedule_t)
+                for _, car in enumerate(temp):
+                    if car.uid != user_id:
+                        self.reschedule_t.put(car)
+                temp = self.pop_all(self.reschedule_f)
+                for _, car in enumerate(temp):
+                    if car.uid != user_id:
+                        self.reschedule_f.put(car)
+                return {"message:取消成功"}
+
+        with self.waiting_lock:
+            vehicle = None
+            for _, car in enumerate(self.waiting_heap_t):
+                if car.uid == user_id:
+                    vehicle = car
+            for _, car in enumerate(self.waiting_heap_f):
+                if car.uid == user_id:
+                    vehicle = car
+            if vehicle == None:
+                return {"message:错过了，车去充电了"}
+            if vehicle.mode == 'T':
+                self.waiting_heap_t.remove(vehicle)
+            else:
+                self.waiting_heap_f.remove(vehicle)
+            return {"message:取消成功"}
+
     def modify_vehicle(self, user_id, mode, power, cal_func):
         with self.waiting_lock:
             vehicle = None
@@ -55,6 +109,8 @@ class WaitingArea:
             for _, car in enumerate(self.waiting_heap_f):
                 if car.uid == user_id:
                     vehicle = car
+            if vehicle == None:
+                return {"message:错过了，车去充电了"}
             if mode == vehicle.mode and power == vehicle.required:
                 return {"message:新旧值相同"}
             if vehicle.mode == 'T':

@@ -14,6 +14,8 @@ def get_all_state():
     }
 
 def get_user_state(user_id:int):
+    if waiting_zone.check_if_rescheduling(user_id):
+        return VehicleStatus.PENDING_RESCHEDULE
     waiting_cars = waiting_zone.get_state()
     if waiting_cars is None:
         return VehicleStatus.LOGGED_IN

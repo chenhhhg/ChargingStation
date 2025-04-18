@@ -88,3 +88,15 @@ def modify(request: Request, mode: str = "D", power: int = -1):
     if state != VehicleStatus.WAITING:
         return {f"message:当前状态不合法：{state.name}"}
     return waiting_zone.modify_vehicle(user_id, mode, power, charging_zone.cal_remain_time)
+
+
+@router.post("/cancel")
+@login_required
+def modify(request: Request):
+    user_id = request.state.user_id
+    state = get_user_state(user_id)
+    if state == VehicleStatus.WAITING or state == VehicleStatus.PENDING_RESCHEDULE:
+        return waiting_zone.cancel(user_id, state)
+    if state == VehicleStatus.QUEUED or state == VehicleStatus.CHARGING:
+        return charging_zone.cancel(user_id)
+    return {f"message:当前状态不合法：{state.name}"}
