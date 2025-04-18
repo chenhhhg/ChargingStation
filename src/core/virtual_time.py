@@ -3,7 +3,7 @@ import threading
 import time
 
 time_factor = 60 * 10
-interval = 1
+interval = 0.1
 class VirtualTime:
     def __init__(self):
         self.begin_time = datetime.datetime.now().timestamp()

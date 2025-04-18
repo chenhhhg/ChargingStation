@@ -3,16 +3,18 @@ import threading
 
 import uvicorn
 from fastapi import FastAPI
-from core.virtual_time import time_factor, VirtualTime
-from route import user, admin, system
+
 from core import state_read
 from core.charging_area import ChargingZone
-from core.waiting_area import WaitingArea
 from core.reporter import Reporter, FeeConfig
+from core.virtual_time import time_factor, VirtualTime
+from core.waiting_area import WaitingArea
+from route import user, admin, system
+
 app = FastAPI()
-app.include_router(user.router)
-app.include_router(admin.router)
-app.include_router(system.router)
+app.include_router(user.router, tags=["用户"])
+app.include_router(admin.router, tags=["管理员"])
+app.include_router(system.router, tags=["系统"])
 
 # 充电速度，单位 度/小时
 fast_speed = 30
@@ -47,6 +49,7 @@ if __name__ == '__main__':
     reporter = Reporter(report_queue, time_factor, FeeConfig(PeakRate, NormalRate, OffPeakRate, ServiceFeeRate))
     vir = VirtualTime()
     charging_zone.vir = vir
+    reporter.vir = vir
     # 启动线程
     charging_zone.start()
     waiting_zone.start()

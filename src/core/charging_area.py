@@ -1,17 +1,17 @@
 import copy
+import logging
 import queue
 import threading
 import time
-import logging
-from datetime import datetime
 from collections import deque
+from datetime import datetime
+
 from core.global_area import Car, ChargeResult
 from core.virtual_time import time_factor
 
 LOG_FORMAT = "%(asctime)s - %(levelname)s - %(filename)s[:%(lineno)d] - %(message)s"
 DATE_FORMAT = "%m/%d/%Y %H:%M:%S %p"
 logging.basicConfig(level=logging.INFO, format=LOG_FORMAT, datefmt=DATE_FORMAT)
-
 class ChargingZone:
     def __init__(self, fast_num, slow_num,
                  semaphore_t: threading.Semaphore,
@@ -96,7 +96,7 @@ class ChargingZone:
                             continue
                         logging.debug(f"正在调度新车辆")
                         next_vehicle = pile.waiting_queue.popleft()
-                        next_vehicle.start_time = datetime.now()
+                        next_vehicle.start_time = self.vir.now()
                         pile.current_vehicle = next_vehicle
                         logging.debug(f"新车辆 {pile.current_vehicle.vid} 开始充电")
                     vehicle = pile.current_vehicle
@@ -107,16 +107,17 @@ class ChargingZone:
                         vehicle.remain_time -= time_passed
                         vehicle.charge_duration += time_passed
                         vehicle.required -= time_passed * speed
+                        vehicle.charge_degree += time_passed * speed
                     else:
                         vehicle.charge_duration += vehicle.remain_time
+                        vehicle.charge_degree += vehicle.remain_time * speed
                         vehicle.remain_time = 0
                         vehicle.required = 0
                     # 空出位置，通知等待区
                     if vehicle.remain_time <= 0:
-                        charge_time = (self.vir.now() - vehicle.start_time)
                         logging.info(f"车辆 {vehicle.vid} 在桩{pile.id}充电完成")
                         pile.current_vehicle = None
-                        self.report_queue.put(ChargeResult(pile.id, datetime.now(), speed, vehicle))
+                        self.report_queue.put(ChargeResult(pile.id, self.vir.now(), speed, vehicle))
                         if vehicle.mode == 'T':
                             self.not_full_t.release()
                         else:
@@ -159,6 +160,7 @@ class ChargingPile:
         """安全转换为字典的方法"""
         with self.lock:
             return {
+                "id": self.id,
                 "mode": self.mode,
                 "current": self.current_vehicle.to_dict() if self.current_vehicle else None,
                 "waiting_queue": [v.to_dict() for v in self.waiting_queue]

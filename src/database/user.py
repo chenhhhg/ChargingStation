@@ -60,3 +60,10 @@ def get_by_id(user_id):
                                     (user_id,)
                                     )
     return cursor.fetchone()
+
+
+def get_all():
+    cursor = connect.cursor.execute("""
+                    SELECT user_id, user_name, password_hash, car_id, capacity
+                    FROM user""")
+    return cursor.fetchall()

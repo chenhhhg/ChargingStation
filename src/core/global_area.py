@@ -7,6 +7,7 @@ class Car:
         self.remain_time = remain_time
         self.start_time = None
         self.charge_duration = 0
+        self.charge_degree = 0
 
     def __lt__(self, other):
         return self.remain_time < other.remain_time
@@ -18,7 +19,8 @@ class Car:
             "mode": self.mode,
             "required_charge":self.required,
             "remain_time":self.remain_time,
-            "charge_duration":self.charge_duration
+            "charge_duration": self.charge_duration,
+            "charge_charge_degree": self.charge_degree,
         }
 
 class ChargeResult(Car):
@@ -29,3 +31,4 @@ class ChargeResult(Car):
         self.start_time = car.start_time
         self.charge_duration = car.charge_duration
         self.speed = speed
+        self.charge_degree = car.charge_degree
