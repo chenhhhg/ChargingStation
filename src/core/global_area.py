@@ -24,9 +24,10 @@ class Car:
         }
 
 class ChargeResult(Car):
-    def __init__(self, pile_id, end_time,speed, car:Car):
+    def __init__(self, pile_id, end_time, speed, car: Car, pile):
         super().__init__(car.uid, car.vid, car.mode, car.required, car.remain_time)  # 调用父类构造函数
         self.pile_id = pile_id          # 充电桩编号
+        self.pile = pile
         self.end_time = end_time        # 充电结束时间
         self.start_time = car.start_time
         self.charge_duration = car.charge_duration

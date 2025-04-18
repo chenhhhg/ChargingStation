@@ -117,7 +117,7 @@ class ChargingZone:
                         vehicle = pile.current_vehicle
                         logging.info(f"车辆 {vehicle.vid} 在桩{pile.id}充电中断，生成报表")
                         speed = self.slow_speed if pile.mode == "T" else self.fast_speed
-                        self.report_queue.put(ChargeResult(pile.id, self.vir.now(), speed, vehicle))
+                        self.report_queue.put(ChargeResult(pile.id, self.vir.now(), speed, vehicle, pile))
                         pile.current_vehicle = None
                         vehicle.charge_degree = 0
                         vehicle.charge_duration = 0
@@ -207,7 +207,7 @@ class ChargingZone:
                 if vehicle.remain_time <= 0:
                     logging.info(f"车辆 {vehicle.vid} 在桩{pile.id}充电完成")
                     pile.current_vehicle = None
-                    self.report_queue.put(ChargeResult(pile.id, self.vir.now(), speed, vehicle))
+                    self.report_queue.put(ChargeResult(pile.id, self.vir.now(), speed, vehicle, pile))
                     # 通过减少release的方式降低信号量大小, 补偿stop的充电桩
                     if self.not_release_cause_stop > 0:
                         self.not_release_cause_stop -= 1

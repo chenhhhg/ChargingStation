@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 
 from core import charging_area
-from database import user, bill
+from database import user, bill, pile
 
 router = APIRouter(
     prefix="/admin"
@@ -27,3 +27,8 @@ async def stop(pile_id: str):
 @router.post("/open")
 async def open(pile_id: str):
     return charging_area.open_pile(pile_id)
+
+
+@router.get("/piles")
+async def piles():
+    return pile.get_all()

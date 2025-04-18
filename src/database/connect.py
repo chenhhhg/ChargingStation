@@ -60,16 +60,22 @@ class Connection:
         #是否正常工作、系统启动后累计充电次数、充电总时长、充电总电量
         self.cursor.execute("""
         CREATE TABLE IF NOT EXISTS pile_report(
-            pile_id Integer,
-            date DATE NOT NULL,
+            id Integer,
+            pile_id TEXT NOT NULL,
+            date TEXT NOT NULL,
             total_charge_num INTEGER NOT NULL,
             total_charge_time DOUBLE NOT NULL,
-            total_capacity DOUBLE NOT NULL,
+            total_charge_degree DOUBLE NOT NULL,
             total_charge_fee DOUBLE NOT NULL,
             total_service_fee DOUBLE NOT NULL,
             primary key (pile_id,date)
             );
                         """)
+        self.cursor.execute(
+            '''
+            CREATE UNIQUE INDEX IF NOT EXISTS idx_pile_date ON pile_report (pile_id, date);
+            '''
+        )
         print("pile_report表格创建成功")
         self.conn.commit()
 

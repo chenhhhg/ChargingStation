@@ -61,3 +61,4 @@ def insert_bill_record(
         total_fee, pay_state
     )
     connect.cursor.execute(sql, params)
+    connect.conn.commit()

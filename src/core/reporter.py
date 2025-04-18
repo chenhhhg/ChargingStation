@@ -1,7 +1,7 @@
 import queue
 import threading
 
-from database import bill
+from database import bill, pile
 
 peak_time = [10, 11, 12, 13, 14, 18, 19, 20]
 off_peak_time = [23, 0, 1, 2, 3, 4, 5, 6]
@@ -96,3 +96,8 @@ class Reporter:
                                     start_time=start, end_time=end, total_charge_fee=fee_charge,
                                     total_service_fee=fee_service,
                                     total_fee=fee_service + fee_charge, pay_state=0)
+
+            pile.insert_or_update_pile_report(pile_id=result.pile_id, date=self.vir.now().date(), total_charge_num=1,
+                                              total_charge_time=result.charge_duration,
+                                              total_charge_degree=result.charge_degree, total_service_fee=fee_service,
+                                              total_charge_fee=fee_charge)
