@@ -116,6 +116,8 @@ class ChargingZone:
                             acquired += 1
                     # 否则，通过减少release的方式降低信号量大小
                     self.not_release_cause_stop += (to_acquire - acquired)
+                return {"message:暂停成功"}
+        return {"message:不存在对应的充电桩"}
 
 
 

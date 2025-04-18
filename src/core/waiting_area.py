@@ -46,6 +46,33 @@ class WaitingArea:
             logging.debug(f"车辆 {vehicle.vid} 加入等待区, 模式:{vehicle.mode}")
         return True
 
+    def modify_vehicle(self, user_id, mode, power, cal_func):
+        with self.waiting_lock:
+            vehicle = None
+            for _, car in enumerate(self.waiting_heap_t):
+                if car.uid == user_id:
+                    vehicle = car
+            for _, car in enumerate(self.waiting_heap_f):
+                if car.uid == user_id:
+                    vehicle = car
+            if mode == vehicle.mode and power == vehicle.required:
+                return {"message:新旧值相同"}
+            if vehicle.mode == 'T':
+                self.waiting_heap_t.remove(vehicle)
+            else:
+                self.waiting_heap_f.remove(vehicle)
+            mode = vehicle.mode if mode == 'D' else mode
+            vehicle.mode = mode
+            vehicle.required = power
+            vehicle.remain_time = cal_func(mode, power)
+            if mode == 'T':
+                heapq.heappush(self.waiting_heap_t, vehicle)
+            else:
+                heapq.heappush(self.waiting_heap_f, vehicle)
+            return {"message:成功修改"}
+
+
+
     def _dispatch_worker(self, interval=1):
         """调度工作线程（内部方法）"""
         while True:

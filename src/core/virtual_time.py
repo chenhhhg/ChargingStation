@@ -2,7 +2,7 @@ import datetime
 import threading
 import time
 
-time_factor = 60 * 10
+time_factor = 60
 interval = 0.1
 class VirtualTime:
     def __init__(self):

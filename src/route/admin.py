@@ -21,4 +21,4 @@ async def bills():
 
 @router.post("/stop")
 async def stop(pile_id: str):
-    charging_area.stop_pile(pile_id)
+    return charging_area.stop_pile(pile_id)
