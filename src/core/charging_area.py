@@ -143,7 +143,18 @@ class ChargingZone:
                 return {"message:暂停成功"}
         return {"message:不存在对应的充电桩"}
 
-
+    def open_pile(self, pile_id: str):
+        for index, pile in enumerate(self.charging_piles):
+            if pile.id == pile_id:
+                with pile.lock:
+                    pile.open = True
+                    to_release = pile.queue_limit + 1
+                    if pile.mode == 'T':
+                        self.not_full_t.release(to_release)
+                    else:
+                        self.not_full_f.release(to_release)
+                return {"message:开启成功"}
+        return {"message:不存在对应的充电桩"}
 
     def charging_worker(self, interval=1):
         """充电桩工作线程"""
@@ -152,45 +163,53 @@ class ChargingZone:
             for index, pile in enumerate(self.charging_piles):
                 if not pile.open:
                     continue
-                with pile.lock:
-                    logging.debug(f"检查充电桩:{index}")
-                    if pile.current_vehicle is None:
-                        logging.debug(f"该充电桩当前未在充电")
-                        if not pile.waiting_queue:
-                            logging.debug("该充电桩当前无排队车辆")
-                            continue
-                        logging.debug(f"正在调度新车辆")
-                        next_vehicle = pile.waiting_queue.popleft()
-                        next_vehicle.start_time = self.vir.now()
-                        pile.current_vehicle = next_vehicle
-                        logging.debug(f"新车辆 {pile.current_vehicle.vid} 开始充电")
-                    vehicle = pile.current_vehicle
-                    logging.info(f"桩 {pile.id} 为等待车辆 {vehicle.vid} 充电")
-                    speed = self.slow_speed if pile.mode == "T" else self.fast_speed
-                    time_passed = (interval / 3600) * time_factor
-                    if vehicle.remain_time > time_passed:
-                        vehicle.remain_time -= time_passed
-                        vehicle.charge_duration += time_passed
-                        vehicle.required -= time_passed * speed
-                        vehicle.charge_degree += time_passed * speed
+                # 无法获锁说明在被其他修改线程使用
+                if not pile.lock.acquire(blocking=False):
+                    continue
+                logging.debug(f"检查充电桩:{index}")
+                # 判断是否新入充电车辆
+                if pile.current_vehicle is None:
+                    logging.debug(f"该充电桩当前未在充电")
+                    if not pile.waiting_queue:
+                        logging.debug("该充电桩当前无排队车辆")
+                        pile.lock.release()
+                        continue
+                    logging.debug(f"正在调度新车辆")
+                    next_vehicle = pile.waiting_queue.popleft()
+                    next_vehicle.start_time = self.vir.now()
+                    pile.current_vehicle = next_vehicle
+                    logging.debug(f"新车辆 {pile.current_vehicle.vid} 开始充电")
+                # 开始充电
+                vehicle = pile.current_vehicle
+                logging.info(f"桩 {pile.id} 为等待车辆 {vehicle.vid} 充电")
+                speed = self.slow_speed if pile.mode == "T" else self.fast_speed
+                time_passed = (interval / 3600) * time_factor
+                # 充电持续
+                if vehicle.remain_time > time_passed:
+                    vehicle.remain_time -= time_passed
+                    vehicle.charge_duration += time_passed
+                    vehicle.required -= time_passed * speed
+                    vehicle.charge_degree += time_passed * speed
+                # 充电结束
+                else:
+                    vehicle.charge_duration += vehicle.remain_time
+                    vehicle.charge_degree += vehicle.remain_time * speed
+                    vehicle.remain_time = 0
+                    vehicle.required = 0
+                # 空出位置，通知等待区
+                if vehicle.remain_time <= 0:
+                    logging.info(f"车辆 {vehicle.vid} 在桩{pile.id}充电完成")
+                    pile.current_vehicle = None
+                    self.report_queue.put(ChargeResult(pile.id, self.vir.now(), speed, vehicle))
+                    # 通过减少release的方式降低信号量大小, 补偿stop的充电桩
+                    if self.not_release_cause_stop > 0:
+                        self.not_release_cause_stop -= 1
                     else:
-                        vehicle.charge_duration += vehicle.remain_time
-                        vehicle.charge_degree += vehicle.remain_time * speed
-                        vehicle.remain_time = 0
-                        vehicle.required = 0
-                    # 空出位置，通知等待区
-                    if vehicle.remain_time <= 0:
-                        logging.info(f"车辆 {vehicle.vid} 在桩{pile.id}充电完成")
-                        pile.current_vehicle = None
-                        self.report_queue.put(ChargeResult(pile.id, self.vir.now(), speed, vehicle))
-                        # 通过减少release的方式降低信号量大小
-                        if self.not_release_cause_stop > 0:
-                            self.not_release_cause_stop -= 1
+                        if vehicle.mode == 'T':
+                            self.not_full_t.release()
                         else:
-                            if vehicle.mode == 'T':
-                                self.not_full_t.release()
-                            else:
-                                self.not_full_f.release()
+                            self.not_full_f.release()
+                pile.lock.release()
             time.sleep(interval)
 
 

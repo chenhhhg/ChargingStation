@@ -25,7 +25,7 @@ slow_speed = 7
 wait_queue_length = 1
 # 各类型充电桩数量
 fast_num = 1
-slow_num = 1
+slow_num = 2
 # 等候区与充电区通信的信号量
 semaphore_f = threading.Semaphore(fast_num * (wait_queue_length + 1))
 semaphore_t = threading.Semaphore(slow_num * (wait_queue_length + 1))
