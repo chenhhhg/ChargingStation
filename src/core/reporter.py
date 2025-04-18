@@ -76,16 +76,19 @@ class Reporter:
                 for i in range(end_hour - start_hour + 1):
                     now = i + start_hour
                     index = 0
-                    while bound[index] < now:
-                        index+=1
-                    fee_charge += speed * 1 * fee_map[index]
-                    fee_service += speed * 1 * s
                     if now == start_hour:
                         fee_charge += (rest_min_start / 60) * speed * fee_map[index]
                         fee_service += (rest_min_start / 60) * speed * s
+                        continue
                     if now == end_hour :
                         fee_charge += (rest_min_end / 60) * speed * fee_map[index]
                         fee_service += (rest_min_end / 60) * speed * s
+                        continue
+                    while bound[index] < now:
+                        index += 1
+                    fee_charge += speed * 1 * fee_map[index]
+                    fee_service += speed * 1 * s
+
             bill_ls = self.serial_gen.get_serial()
             bill.insert_bill_record(bill_ls=bill_ls, user_id=result.uid, car_id=result.vid, bill_date=self.vir.now(),
                                     pile_id=result.pile_id, charge_amount=result.charge_degree,

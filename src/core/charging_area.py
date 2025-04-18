@@ -139,7 +139,7 @@ class ChargingZone:
                         pile.current_vehicle = next_vehicle
                         logging.debug(f"新车辆 {pile.current_vehicle.vid} 开始充电")
                     vehicle = pile.current_vehicle
-                    logging.info(f"桩 {pile.id} 开始为等待车辆 {vehicle.vid} 充电")
+                    logging.info(f"桩 {pile.id} 为等待车辆 {vehicle.vid} 充电")
                     speed = self.slow_speed if pile.mode == "T" else self.fast_speed
                     time_passed = (interval / 3600) * time_factor
                     if vehicle.remain_time > time_passed:
