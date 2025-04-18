@@ -1,7 +1,7 @@
 import copy
 import heapq
-import threading
 import logging
+import threading
 import time
 
 LOG_FORMAT = "%(asctime)s - %(levelname)s - %(filename)s[:%(lineno)d] - %(message)s"
@@ -21,15 +21,17 @@ class WaitingArea:
         self.waiting_lock = threading.Lock()
         self.waiting_cond = threading.Condition()
 
-        # 启动调度线程
         self.worker_thread = threading.Thread(target=self._dispatch_worker, daemon=True)
 
+        self.reschedule_t = None
+        self.reschedule_f = None
     def start(self):
         self.worker_thread.start()
 
     def get_state(self):
-        return {"T":copy.deepcopy(self.waiting_heap_t),
-                "F":copy.deepcopy(self.waiting_heap_f)}
+        return {"T": copy.deepcopy(self.waiting_heap_t), "F": copy.deepcopy(self.waiting_heap_f),
+                "T重新调度队列": self.reschedule_t.qsize(), "F重新调度队列": self.reschedule_f.qsize()
+                }
 
     def add_vehicle(self, vehicle):
         """添加车辆到优先队列"""
@@ -49,12 +51,20 @@ class WaitingArea:
         while True:
             logging.debug("等候区线程开始工作")
             with self.waiting_lock:
-                logging.debug("尝试调度T车辆")
+                logging.debug("尝试调度T车辆，优先调度需要重新调度的车辆")
+                while self.reschedule_t.qsize() > 0 and self.not_full_t.acquire(blocking=False):
+                    vehicle = self.reschedule_t.get()
+                    self.charging_zone.assign_vehicle(vehicle)
+                    logging.debug(f"车辆 {vehicle.vid} 模式 {vehicle.mode} 已分配充电桩")
                 if self.waiting_heap_t and self.not_full_t.acquire(blocking=False):
                     vehicle = heapq.heappop(self.waiting_heap_t)
                     self.charging_zone.assign_vehicle(vehicle)
                     logging.debug(f"车辆 {vehicle.vid} 模式 {vehicle.mode} 已分配充电桩")
-                logging.debug("尝试调度F车辆")
+                logging.debug("尝试调度F车辆，优先调度需要重新调度的车辆")
+                while self.reschedule_f.qsize() > 0 and self.not_full_f.acquire(blocking=False):
+                    vehicle = self.reschedule_f.get()
+                    self.charging_zone.assign_vehicle(vehicle)
+                    logging.debug(f"车辆 {vehicle.vid} 模式 {vehicle.mode} 已分配充电桩")
                 if self.waiting_heap_f and self.not_full_f.acquire(blocking=False):
                     vehicle = heapq.heappop(self.waiting_heap_f)
                     self.charging_zone.assign_vehicle(vehicle)

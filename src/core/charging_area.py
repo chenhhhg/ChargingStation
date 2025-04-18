@@ -4,7 +4,6 @@ import queue
 import threading
 import time
 from collections import deque
-from datetime import datetime
 
 from core.global_area import Car, ChargeResult
 from core.virtual_time import time_factor
@@ -32,8 +31,11 @@ class ChargingZone:
         self.charging_piles = [ChargingPile("T", wait_queue_length, _) for _ in range(slow_num)]
         self.charging_piles.extend(ChargingPile("F", wait_queue_length, _) for _ in range(fast_num))
 
-        # 启动充电工作线程
         self.worker_thread = threading.Thread(target=self.charging_worker, daemon=True)
+
+        self.not_release_cause_stop = 0
+        self.reschedule_t = None
+        self.reschedule_f = None
 
     def start(self):
         self.worker_thread.start()
@@ -47,7 +49,7 @@ class ChargingZone:
         best_index = -1
         for i, pile in enumerate(self.charging_piles):
             with pile.lock:
-                if pile.mode != vehicle.mode or len(pile.waiting_queue) == pile.queue_limit:
+                if not pile.open or pile.mode != vehicle.mode or len(pile.waiting_queue) == pile.queue_limit:
                     continue
                 score = len(pile.waiting_queue)
                 if pile.current_vehicle is None:
@@ -67,7 +69,7 @@ class ChargingZone:
         with target_pile.lock:
             if target_pile.current_vehicle is None:
                 target_pile.current_vehicle = vehicle
-                vehicle.start_time = datetime.now()
+                vehicle.start_time = self.vir.now()
                 logging.info(f"车辆 {vehicle.vid} 开始充电（桩{index}）")
             elif len(target_pile.waiting_queue) < target_pile.queue_limit:
                 target_pile.waiting_queue.append(vehicle)
@@ -82,11 +84,48 @@ class ChargingZone:
         fCar = Car(0, 0, "F",0,  0)
         return self.find_pile(tCar) >= 0 or self.find_pile(fCar) >= 0
 
+    def stop_pile(self, pile_id: str):
+        for index, pile in enumerate(self.charging_piles):
+            if pile.id == pile_id:
+                with pile.lock:
+                    v = []
+                    if pile.current_vehicle is not None:
+                        vehicle = pile.current_vehicle
+                        logging.info(f"车辆 {vehicle.vid} 在桩{pile.id}充电中断，生成报表")
+                        speed = self.slow_speed if pile.mode == "T" else self.fast_speed
+                        self.report_queue.put(ChargeResult(pile.id, self.vir.now(), speed, vehicle))
+                        pile.current_vehicle = None
+                        vehicle.charge_degree = 0
+                        vehicle.charge_duration = 0
+                        v.append(vehicle)
+                    if len(pile.waiting_queue) > 0:
+                        v.extend(pile.waiting_queue)
+                        pile.waiting_queue = []
+                    reschedule = self.reschedule_t if pile.mode == 'T' else self.reschedule_f
+                    for _, car in enumerate(v):
+                        reschedule.put(car)
+                    pile.open = False
+                    # 此步acquire对于本pile
+                    # 某个充电桩暂停后，其无法再提供（未使用位置数量）个的可acquire信号量
+                    to_acquire = pile.queue_limit + 1 - len(v)
+                    acquired = 0
+                    not_full = self.not_full_f if pile.mode == 'F' else self.not_full_t
+                    # 如果acquire成功，相当于直接减少
+                    for _ in range(to_acquire):
+                        if not_full.acquire(blocking=False):
+                            acquired += 1
+                    # 否则，通过减少release的方式降低信号量大小
+                    self.not_release_cause_stop += (to_acquire - acquired)
+
+
+
     def charging_worker(self, interval=1):
         """充电桩工作线程"""
         while True:
             logging.debug("充电区线程开始工作")
             for index, pile in enumerate(self.charging_piles):
+                if not pile.open:
+                    continue
                 with pile.lock:
                     logging.debug(f"检查充电桩:{index}")
                     if pile.current_vehicle is None:
@@ -118,10 +157,14 @@ class ChargingZone:
                         logging.info(f"车辆 {vehicle.vid} 在桩{pile.id}充电完成")
                         pile.current_vehicle = None
                         self.report_queue.put(ChargeResult(pile.id, self.vir.now(), speed, vehicle))
-                        if vehicle.mode == 'T':
-                            self.not_full_t.release()
+                        # 通过减少release的方式降低信号量大小
+                        if self.not_release_cause_stop > 0:
+                            self.not_release_cause_stop -= 1
                         else:
-                            self.not_full_f.release()
+                            if vehicle.mode == 'T':
+                                self.not_full_t.release()
+                            else:
+                                self.not_full_f.release()
             time.sleep(interval)
 
 
@@ -147,6 +190,7 @@ class ChargingPile:
         self.queue_limit = wait_queue_length
         self.waiting_queue = deque()
         self.lock = threading.Lock()
+        self.open = True
 
     def __deepcopy__(self, memo):
         # 跳过锁的拷贝
