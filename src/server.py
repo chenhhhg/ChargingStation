@@ -65,6 +65,7 @@ if __name__ == '__main__':
     state_read.waiting_zone = waiting_zone
     state_read.vir = vir
     admin.charging_area = charging_zone
+    admin.waiting_zone = waiting_zone
     # 启动线程
     charging_zone.start()
     waiting_zone.start()
