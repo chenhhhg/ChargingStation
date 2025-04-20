@@ -27,6 +27,9 @@ class WaitingArea:
 
         self.reschedule_t = None
         self.reschedule_f = None
+
+        self.count_t = 0
+        self.count_f = 0
     def start(self):
         self.worker_thread.start()
 
@@ -42,8 +45,12 @@ class WaitingArea:
                 logging.debug(f"车辆 {vehicle.vid} 等待队列已满")
                 return False
             if vehicle.mode == "T":
+                vehicle.number = self.count_t
+                self.count_t += 1
                 heapq.heappush(self.waiting_heap_t, vehicle)
             else:
+                vehicle.number = self.count_f
+                self.count_f += 1
                 heapq.heappush(self.waiting_heap_f, vehicle)
             logging.debug(f"车辆 {vehicle.vid} 加入等待区, 模式:{vehicle.mode}")
         return True

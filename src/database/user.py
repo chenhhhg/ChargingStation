@@ -67,3 +67,7 @@ def get_all():
                     SELECT user_id, user_name, password_hash, car_id, capacity
                     FROM user""")
     return cursor.fetchall()
+
+def test_add():
+    for i in range(10):
+        insert(120, "test"+str(i), "test"+str(i))

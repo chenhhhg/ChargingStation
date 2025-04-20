@@ -8,7 +8,7 @@ class Car:
         self.start_time = None
         self.charge_duration = 0
         self.charge_degree = 0
-
+        self.number = None
     def __lt__(self, other):
         return self.remain_time < other.remain_time
 

@@ -62,4 +62,6 @@ def hash_password(password):
 
 if __name__ == '__main__':
     for _ in range(10):
-        print(generate_token(_, generate_license_plate()))
+        t = generate_token(_, generate_license_plate())
+        print(f"\"{t}\"")
+        decode_token(t)

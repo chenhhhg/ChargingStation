@@ -32,3 +32,7 @@ async def open(pile_id: str):
 @router.get("/piles")
 async def piles():
     return pile.get_all()
+
+@router.post("/test/add/user")
+def test_add_user():
+    return user.test_add()
