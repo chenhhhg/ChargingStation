@@ -29,10 +29,10 @@ def get_user_state(user_id:int):
             return VehicleStatus.WAITING
     piles = charging_zone.get_state()
     for _, pile in enumerate(piles):
-        if pile["current"] is not None and pile["current"]["user_id"] == user_id:
+        if pile["current"] is not None and pile["current"]["uid"] == user_id:
             return VehicleStatus.CHARGING
         for _, car in enumerate(pile["waiting_queue"]):
-            if car["user_id"] == user_id:
+            if car["uid"] == user_id:
                 return VehicleStatus.QUEUED
     return VehicleStatus.LOGGED_IN
 

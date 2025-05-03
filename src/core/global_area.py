@@ -14,13 +14,15 @@ class Car:
 
     def to_dict(self):
         return {
-            "user_id": self.uid,
-            "car_id": self.vid,
+            "uid": self.uid,
+            "vid": self.vid,
             "mode": self.mode,
-            "required_charge":self.required,
+            "required":self.required,
             "remain_time":self.remain_time,
             "charge_duration": self.charge_duration,
-            "charge_charge_degree": self.charge_degree,
+            "charge_degree": self.charge_degree,
+            "start_time": self.start_time,
+            "number": self.number,
         }
 
 class ChargeResult(Car):
