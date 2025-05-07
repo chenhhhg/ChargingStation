@@ -35,7 +35,7 @@ class WaitingArea:
 
     def get_state(self):
         return {"T": copy.deepcopy(self.waiting_heap_t), "F": copy.deepcopy(self.waiting_heap_f),
-                "T重新调度队列": self.reschedule_t.qsize(), "F重新调度队列": self.reschedule_f.qsize()
+                "T_reschedule": self.reschedule_t.qsize(), "F_reschedule": self.reschedule_f.qsize()
                 }
 
     def add_vehicle(self, vehicle):
